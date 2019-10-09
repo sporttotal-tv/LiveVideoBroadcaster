@@ -1,0 +1,4 @@
+[submodule "LibRtmp-Client-for-Android"]
+	path = LibRtmp-Client-for-Android
+	url = https://sandeep-sporttotal@github.com/sporttotal-tv/LibRtmp-Client-for-Android.git
+	branch = master
