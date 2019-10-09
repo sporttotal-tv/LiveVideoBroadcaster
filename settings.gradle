@@ -1,1 +1,3 @@
 include ':app', ':liveVideoBroadcasterSDK'
+include ':rtmp-client'
+project(':rtmp-client').projectDir = new File('LibRtmp-Client-for-Android/rtmp-client')

@@ -16,7 +16,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Message;
-import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentTransaction;
@@ -30,6 +29,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Timer;
@@ -40,6 +40,7 @@ import io.antmedia.android.broadcaster.LiveVideoBroadcaster;
 import io.antmedia.android.broadcaster.utils.Resolution;
 
 import static io.antmedia.android.MainActivity.RTMP_BASE_URL;
+import static io.antmedia.android.MainActivity.RTMP_STREAM_NAME;
 
 public class LiveVideoBroadcasterActivity extends AppCompatActivity {
 
@@ -99,6 +100,7 @@ public class LiveVideoBroadcasterActivity extends AppCompatActivity {
 
         mTimerHandler = new TimerHandler();
         mStreamNameEditText = (EditText) findViewById(R.id.stream_name_edit_text);
+        mStreamNameEditText.setText(RTMP_STREAM_NAME);
 
         mRootView = (ViewGroup)findViewById(R.id.root_layout);
         mSettingsButton = (ImageButton)findViewById(R.id.settings_button);
@@ -222,7 +224,8 @@ public class LiveVideoBroadcasterActivity extends AppCompatActivity {
             mCameraResolutionsDialog.show(ft, "resolutiton_dialog");
         }
         else {
-            Snackbar.make(mRootView, "No resolution available",Snackbar.LENGTH_LONG).show();
+            //Snackbar.make(mRootView, "No resolution available",Snackbar.LENGTH_LONG).show();
+            Toast.makeText(this, "No resolution available",Toast.LENGTH_LONG).show();
         }
 
     }
@@ -261,7 +264,8 @@ public class LiveVideoBroadcasterActivity extends AppCompatActivity {
                                 startTimer();//start the recording duration
                             }
                             else {
-                                Snackbar.make(mRootView, R.string.stream_not_started, Snackbar.LENGTH_LONG).show();
+                               // Snackbar.make(mRootView, R.string.stream_not_started, Snackbar.LENGTH_LONG).show();
+                                Toast.makeText(LiveVideoBroadcasterActivity.this, R.string.stream_not_started, Toast.LENGTH_LONG).show();
 
                                 triggerStopRecording();
                             }
@@ -269,11 +273,14 @@ public class LiveVideoBroadcasterActivity extends AppCompatActivity {
                     }.execute(RTMP_BASE_URL + streamName);
                 }
                 else {
-                    Snackbar.make(mRootView, R.string.streaming_not_finished, Snackbar.LENGTH_LONG).show();
+                    //Snackbar.make(mRootView, R.string.streaming_not_finished, Snackbar.LENGTH_LONG).show();
+
+                    Toast.makeText(LiveVideoBroadcasterActivity.this,R.string.streaming_not_finished, Toast.LENGTH_LONG).show();
                 }
             }
             else {
-                Snackbar.make(mRootView, R.string.oopps_shouldnt_happen, Snackbar.LENGTH_LONG).show();
+               // Snackbar.make(mRootView, R.string.oopps_shouldnt_happen, Snackbar.LENGTH_LONG).show();
+                Toast.makeText(LiveVideoBroadcasterActivity.this,R.string.oopps_shouldnt_happen , Toast.LENGTH_LONG).show();
             }
         }
         else

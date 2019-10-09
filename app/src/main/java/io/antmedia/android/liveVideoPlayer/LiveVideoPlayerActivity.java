@@ -83,6 +83,7 @@ import java.util.UUID;
 import io.antmedia.android.liveVideoBroadcaster.R;
 
 import static io.antmedia.android.MainActivity.RTMP_BASE_URL;
+import static io.antmedia.android.MainActivity.RTMP_STREAM_NAME;
 
 /**
  * An activity that plays media using {@link SimpleExoPlayer}.
@@ -145,6 +146,7 @@ public class LiveVideoPlayerActivity extends AppCompatActivity implements OnClic
     retryButton.setOnClickListener(this);
 
     videoNameEditText = (EditText) findViewById(R.id.video_name_edit_text);
+    videoNameEditText.setText(RTMP_STREAM_NAME);
     videoStartControlLayout = findViewById(R.id.video_start_control_layout);
 
     simpleExoPlayerView = (SimpleExoPlayerView) findViewById(R.id.player_view);

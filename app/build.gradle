@@ -1,12 +1,19 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 25
-    buildToolsVersion "25.0.1"
+
+    compileSdkVersion  COMPILE_SDK_VERSION as int // sdk level 21 lets ndk generate resources for archs such as arm64.
     defaultConfig {
         applicationId "io.antmedia.android.livevideopublisher"
-        minSdkVersion 18
-        targetSdkVersion 25
+        minSdkVersion MIN_SDK_VERSION as int
+        targetSdkVersion TARGET_SDK_VERSION as int
+        //buildToolsVersion "25.0.1"
+    //compileSdkVersion 25
+    //buildToolsVersion "25.0.1"
+    //defaultConfig {
+       // applicationId "io.antmedia.android.livevideopublisher"
+        //minSdkVersion 18
+        //targetSdkVersion 25
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
@@ -24,10 +31,12 @@ dependencies {
     androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
-    compile 'com.android.support:appcompat-v7:25.3.1'
+    implementation 'com.android.support:appcompat-v7:25.3.1'
 
-    compile 'com.google.android.exoplayer:exoplayer:r2.3.1'
+    implementation 'com.google.android.exoplayer:exoplayer:r2.3.1'
 
-    compile project(path: ':liveVideoBroadcasterSDK')
-    testCompile 'junit:junit:4.12'
+    implementation project(path: ':liveVideoBroadcasterSDK')
+    debugImplementation project(':rtmp-client')
+    releaseImplementation project(':rtmp-client')
+    testImplementation 'junit:junit:4.12'
 }
