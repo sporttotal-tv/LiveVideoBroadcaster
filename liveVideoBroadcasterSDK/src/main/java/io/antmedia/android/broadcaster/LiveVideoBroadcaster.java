@@ -363,8 +363,8 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                if (i>5) {
-                    //timeout 250ms
+                if (i>500) {
+                    //timeout 25000ms / 25sec
                     //force stop recording
                     sVideoEncoder.stopRecording();
                     break;
@@ -726,6 +726,7 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
         }
 
         int result;
+        degrees=+90;
         if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
             result = (info.orientation + degrees) % 360;
             result = (360 - result) % 360;  // compensate the mirror
