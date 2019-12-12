@@ -67,7 +67,7 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     private Activity context;
     private volatile static boolean sCameraReleased;
     private ArrayList<Resolution> choosenPreviewsSizeList;
-    private final IBinder mBinder = new LocalBinder();
+    private IBinder mBinder = new LocalBinder();
     private int currentCameraId= Camera.CameraInfo.CAMERA_FACING_BACK;
 
     private int frameRate = 20;
@@ -156,10 +156,16 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     }
 
     @Override
+    public void stopService() {
+        stopSelf();
+    }
+
+    @Override
     public void onDestroy() {
         audioHandlerThread.quitSafely();
         mRtmpHandlerThread.quitSafely();
         mCameraHandler.invalidateHandler();
+        this.context = null;
         super.onDestroy();
     }
 
