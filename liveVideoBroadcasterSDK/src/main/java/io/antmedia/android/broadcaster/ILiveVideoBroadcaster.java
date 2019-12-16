@@ -107,5 +107,7 @@ public interface ILiveVideoBroadcaster {
      */
     void stopBroadcasting();
 
+    void stopService();
+
 
 }
