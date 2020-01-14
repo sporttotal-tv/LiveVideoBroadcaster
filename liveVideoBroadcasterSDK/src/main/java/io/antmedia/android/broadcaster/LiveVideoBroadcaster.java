@@ -27,6 +27,7 @@ import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 
 import com.google.android.material.snackbar.Snackbar;
@@ -369,10 +370,12 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                if (i>500) {
+                if (i>5) {
                     //timeout 25000ms / 25sec
                     //force stop recording
                     sVideoEncoder.stopRecording();
+                    Intent intent = new Intent("Stream-Stopped");
+                    LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
                     break;
                 }
                 i++;
