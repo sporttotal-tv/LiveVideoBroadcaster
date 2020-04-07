@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import io.antmedia.android.broadcaster.Logger;
 import io.antmedia.android.broadcaster.network.IMediaMuxer;
 
 /**
@@ -239,12 +240,15 @@ public class VideoEncoderCore {
                 mEncoder.releaseOutputBuffer(encoderStatus, false);
 
                 if ((mBufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                    Logger.d("TextureMovieEncoder:drainEncoder -> enter : endOfStream=" + endOfStream);
+
                     if (!endOfStream) {
                         Log.w(TAG, "reached end of stream unexpectedly");
                     } else {
                         if (VERBOSE) Log.d(TAG, "end of stream reached");
                     }
                     reservedBuffers.clear();
+                    Logger.d("TextureMovieEncoder:drainEncoder -> exit");
                     break;      // out of while
                 }
             }

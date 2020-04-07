@@ -76,10 +76,13 @@ class AudioRecorderThread extends Thread {
     public void stopAudioRecording() {
 
         if (audioRecord != null && audioRecord.getRecordingState() == android.media.AudioRecord.RECORDSTATE_RECORDING) {
+            Logger.d("AudioRecorderThread:stopAudioRecording -> enter");
             stopThread = true;
             audioRecord.stop();
             audioRecord.release();
             audioRecord = null;
+            Logger.d("AudioRecorderThread:stopAudioRecording -> exit");
+
         }
     }
 

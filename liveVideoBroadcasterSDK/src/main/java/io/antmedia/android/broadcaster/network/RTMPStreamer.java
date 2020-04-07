@@ -17,6 +17,7 @@ import net.butterflytv.rtmp_client.RTMPMuxer;
 import java.util.ArrayList;
 import java.util.Iterator;
 
+import io.antmedia.android.broadcaster.Logger;
 import io.antmedia.android.broadcaster.network.IMediaMuxer;
 
 /**
@@ -38,6 +39,7 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
     private int lastSentFrameTimeStamp = -1;
     private Object frameSynchronized = new Object();
     private boolean isConnected = false;
+    private boolean isStopping = false;
 
     public class Frame {
         byte[] data;
@@ -86,6 +88,7 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
         mLastReceivedAudioFrameTimeStamp = -1;
         lastSentFrameTimeStamp = -1;
         isConnected = false;
+        isStopping = false;
         int result = rtmpMuxer.open(url, 0, 0);
 
         if (result > 0) {
@@ -100,6 +103,7 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
         Log.i(TAG, "close rtmp connection");
         isConnected = false;
         rtmpMuxer.close();
+        isStopping = true;
     }
 
     /**
@@ -129,6 +133,9 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
                 else {
                     Log.w(TAG, "discarding audio packet because time stamp is older than last packet or data lenth equal to zero");
                 }
+                if(isStopping) {
+                    Logger.d("RTMPStreamer: still adding  audio frames");
+                }
                 sendFrames();
             }
             break;
@@ -150,6 +157,9 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
 
                     Log.w(TAG, "discarding videp packet because time stamp is older  than last packet or data lenth equal to zero");
                 }
+                if(isStopping) {
+                    Logger.d("RTMPStreamer: still adding video frames");
+                }
                 sendFrames();
             }
             break;
@@ -165,12 +175,14 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
 
     private void finishframes()
     {
+
         int videoFrameListSize, audioFrameListSize;
         do {
             sendFrames();
 
             videoFrameListSize = videoFrameList.size();
             audioFrameListSize = audioFrameList.size();
+            Logger.d("RTMPStreamer:Finishing frames, video:" + videoFrameListSize + ", audio:" + audioFrameListSize);
             //one of the frame list should be exhausted while the other have frames
         } while ((videoFrameListSize > 0) && (audioFrameListSize > 0));
 
@@ -182,6 +194,7 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
             //send all audio frames remained in the list
             sendAudioFrames(audioFrameList.get(audioFrameListSize - 1).timestamp);
         }
+        Logger.d("RTMPStreamer:Finished frames");
 
     }
 

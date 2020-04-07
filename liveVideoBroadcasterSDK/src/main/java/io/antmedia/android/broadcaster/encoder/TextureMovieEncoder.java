@@ -27,6 +27,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 
+import io.antmedia.android.broadcaster.Logger;
 import io.antmedia.android.broadcaster.encoder.gles.EglCore;
 import io.antmedia.android.broadcaster.encoder.gles.FullFrameRect;
 import io.antmedia.android.broadcaster.encoder.gles.Texture2dProgram;
@@ -70,6 +71,7 @@ public class TextureMovieEncoder implements Runnable {
     private static final int MSG_QUIT = 5;
     private static final int MSG_RELEASE_RECORDING = 6;
     private static final int MSG_CHANGE_EFFECT = 7;
+    private static final int MSG_QUIT_SAFELY = 8;
 
     // ----- accessed exclusively by encoder thread -----
     private WindowSurface mInputWindowSurface;
@@ -89,6 +91,7 @@ public class TextureMovieEncoder implements Runnable {
     private long mLastFrameTime = 0;
     private Texture2dProgram.ProgramType mProgramType;
     private EncoderConfig mEncoderConfig;
+    private IVideoEncoderCallback videoEncoderCallback;
 
     /**
      * Encoder configuration.
@@ -121,7 +124,12 @@ public class TextureMovieEncoder implements Runnable {
         }
 
     }
+public void setListener(IVideoEncoderCallback callback) {
+        isStopping = false;
+        videoEncoderCallback = callback;
+}
 
+private boolean isStopping = false;
     /**
      * Tells the video recorder to start recording.  (Call from non-encoder thread.)
      * <p>
@@ -140,6 +148,9 @@ public class TextureMovieEncoder implements Runnable {
             this.mRecordingStartTime = mRecordingStartTime;
             mRunning = true;
             new Thread(this, "TextureMovieEncoder").start();
+            if(videoEncoderCallback != null) {
+                videoEncoderCallback.onVideoEncoderRunning();
+            }
             while (!mReady) {
                 try {
                     mReadyFence.wait();
@@ -170,10 +181,28 @@ public class TextureMovieEncoder implements Runnable {
      * so we can provide reasonable status UI (and let the caller know that movie encoding
      * has completed).
      */
-    public void stopRecording() {
+    public void stopRecording(boolean fromUi) {
         if (mHandler != null) {
+            if(fromUi) {
+                isStopping = true;
+            }
+            Logger.d("TextureMovieEncoder:stopRecording -> enter");
             mHandler.sendMessage(mHandler.obtainMessage(MSG_STOP_RECORDING));
             mHandler.sendMessage(mHandler.obtainMessage(MSG_QUIT));
+            Logger.d("TextureMovieEncoder:stopRecording -> exit");
+
+        }
+        // We don't know when these will actually finish (or even start).  We don't want to
+        // delay the UI thread though, so we return immediately.
+    }
+
+    public void stopRecordingSafely() {
+        if (mHandler != null) {
+            isStopping = true;
+            Logger.d("TextureMovieEncoder:stopRecordingSafely -> enter");
+            mHandler.sendMessage(mHandler.obtainMessage(MSG_STOP_RECORDING));
+            mHandler.sendMessage(mHandler.obtainMessage(MSG_QUIT_SAFELY));
+            Logger.d("TextureMovieEncoder:stopRecordingSafely -> exit");
         }
         // We don't know when these will actually finish (or even start).  We don't want to
         // delay the UI thread though, so we return immediately.
@@ -302,6 +331,9 @@ public class TextureMovieEncoder implements Runnable {
         Looper.loop();
 
         Log.d(TAG, "Encoder thread exiting");
+        if(videoEncoderCallback !=null && isStopping) {
+            videoEncoderCallback.onVideoEncoderStopped();
+        }
         synchronized (mReadyFence) {
             mReady = mRunning = false;
             mHandler = null;
@@ -358,7 +390,11 @@ public class TextureMovieEncoder implements Runnable {
                     break;
                 case MSG_QUIT:
                     Looper.myLooper().quit();
-                    System.out.println("looper msg quit....");
+                    Logger.state(TextureMovieEncoder.class, "looper msg quit");
+                    break;
+                case MSG_QUIT_SAFELY:
+                    Looper.myLooper().quitSafely();
+                    Logger.state(TextureMovieEncoder.class, "looper msg quit safely");
                     break;
                 default:
                     throw new RuntimeException("Unhandled msg what=" + what);
@@ -415,11 +451,16 @@ public class TextureMovieEncoder implements Runnable {
      */
     private void handleStopRecording(boolean stopMuxer) {
         Log.d(TAG, "handleStopRecording");
+        Logger.d("TextureMovieEncoder:handleStopRecording -> enter");
+
         mVideoEncoder.drainEncoder(true);
         releaseEncoder();
         if (stopMuxer) {
             mVideoEncoder.stopMuxer();
         }
+
+        Logger.d("TextureMovieEncoder:handleStopRecording -> exit");
+
     }
 
     /**
@@ -503,4 +544,10 @@ public class TextureMovieEncoder implements Runnable {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
         GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
     }
+
+    public interface IVideoEncoderCallback {
+        void onVideoEncoderStopped();
+        void onVideoEncoderRunning();
+    }
+
 }

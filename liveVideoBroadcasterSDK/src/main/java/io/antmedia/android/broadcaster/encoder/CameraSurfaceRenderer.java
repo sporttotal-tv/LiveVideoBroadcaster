@@ -260,7 +260,7 @@ public class CameraSurfaceRenderer implements GLSurfaceView.Renderer {
                 case RECORDING_RESUMED:
                     // stop recording
                     Log.d(TAG, "STOP recording");
-                    mVideoEncoder.stopRecording();
+                    mVideoEncoder.stopRecording(false);
                     mRecordingStatus = RECORDING_OFF;
                     break;
                 case RECORDING_OFF:

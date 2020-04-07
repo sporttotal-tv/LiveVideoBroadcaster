@@ -17,6 +17,7 @@ import android.net.NetworkInfo;
 import android.opengl.GLSurfaceView;
 import android.os.AsyncTask;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.Process;
@@ -27,6 +28,9 @@ import android.view.View;
 import androidx.annotation.Nullable;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.LifecycleOwner;
+import androidx.lifecycle.MutableLiveData;
+import androidx.lifecycle.Observer;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 
@@ -40,21 +44,25 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import io.antmedia.android.R;
+import io.antmedia.android.broadcaster.constants.LiveVideoBroadcasterStatus;
 import io.antmedia.android.broadcaster.encoder.AudioHandler;
 import io.antmedia.android.broadcaster.encoder.CameraSurfaceRenderer;
 import io.antmedia.android.broadcaster.encoder.TextureMovieEncoder;
 import io.antmedia.android.broadcaster.encoder.VideoEncoderCore;
+import io.antmedia.android.broadcaster.event.EventBroadcast;
 import io.antmedia.android.broadcaster.network.IMediaMuxer;
 import io.antmedia.android.broadcaster.network.RTMPStreamer;
 import io.antmedia.android.broadcaster.utils.Resolution;
 import io.antmedia.android.broadcaster.utils.Utils;
+
+import static io.antmedia.android.broadcaster.constants.LiveVideoBroadcasterStatus.STREAMING;
 
 
 /**
  * Created by mekya on 28/03/2017.
  */
 
-public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcaster, CameraHandler.ICameraViewer, SurfaceTexture.OnFrameAvailableListener {
+public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcaster, CameraHandler.ICameraViewer, SurfaceTexture.OnFrameAvailableListener, TextureMovieEncoder.IVideoEncoderCallback {
 
     private static final String TAG = LiveVideoBroadcaster.class.getSimpleName();
     private volatile static CameraProxy sCameraProxy;
@@ -70,6 +78,7 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     private ArrayList<Resolution> choosenPreviewsSizeList;
     private IBinder mBinder = new LocalBinder();
     private int currentCameraId= Camera.CameraInfo.CAMERA_FACING_BACK;
+    private boolean spAllowBitRateChange = true;
 
     private int frameRate = 20;
     public static final int PERMISSIONS_REQUEST = 8954;
@@ -84,11 +93,18 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     private boolean adaptiveStreamingEnabled = false;
     private Timer adaptiveStreamingTimer = null;
 
+    private MutableLiveData<LiveVideoBroadcasterStatus> liveVideoBroadcasterLV = new MutableLiveData();
+
     public boolean isConnected() {
         if (mRtmpStreamer != null) {
             return mRtmpStreamer.isConnected();
         }
         return false;
+    }
+
+    @Override
+     public MutableLiveData<LiveVideoBroadcasterStatus> getLiveData() {
+        return liveVideoBroadcasterLV;
     }
 
     @Override
@@ -107,7 +123,7 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
         //camera function is called after release exception may be thrown
         //especially in htc one x 4.4.2
         mGLView.setVisibility(View.GONE);
-        stopBroadcasting();
+        stopBroadcasting(true);
 
         mGLView.queueEvent(new Runnable() {
             @Override
@@ -140,6 +156,20 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
 
     public Resolution getPreviewSize() {
         return previewSize;
+    }
+
+    @Override
+    public void onVideoEncoderStopped() {
+        Logger.d("onVideoEncoderStopped -> enter");
+        //EventBroadcast.sendEvent(context, LiveVideoBroadcasterStatus.STOPPING_SAFELY);
+        EventBroadcast.sendEvent(liveVideoBroadcasterLV, LiveVideoBroadcasterStatus.STOPPING_SAFELY);
+        sVideoEncoder.setListener(null);
+        Logger.d("onVideoEncoderStopped -> exit");
+    }
+
+    @Override
+    public void onVideoEncoderRunning() {
+        EventBroadcast.sendEvent(this, LiveVideoBroadcasterStatus.STREAMING);
     }
 
     public class LocalBinder extends Binder {
@@ -192,6 +222,21 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
 
             connectivityManager = (ConnectivityManager) this.getSystemService(
                     Context.CONNECTIVITY_SERVICE);
+
+            liveVideoBroadcasterLV.observe((LifecycleOwner) activity, new Observer<LiveVideoBroadcasterStatus>() {
+                @Override
+                public void onChanged(LiveVideoBroadcasterStatus liveVideoBroadcasterStatus) {
+                    switch (liveVideoBroadcasterStatus) {
+                        case NETWORK_PAUSED: {
+
+                        }
+                        break;
+                        case NETWORK_RESUMED: {
+                            liveVideoBroadcasterLV.setValue(STREAMING);
+                        }
+                    }
+                }
+            });
         }
         catch (Exception e) {
             e.printStackTrace();
@@ -209,7 +254,8 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     public boolean startBroadcasting(String rtmpUrl) {
 
         isRecording = false;
-
+        Logger.d("LiveVideoBroadcaster:init and set listener");
+        sVideoEncoder.setListener(this);
         if (sCameraProxy == null || sCameraProxy.isReleased()) {
             Log.w(TAG, "Camera should be opened before calling this function");
             return false;
@@ -263,7 +309,7 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
                         public void run() {
 
 
-                            int frameCountInQueue = mRtmpStreamer.getVideoFrameCountInQueue();
+                            final int frameCountInQueue = mRtmpStreamer.getVideoFrameCountInQueue();
                             Log.d(TAG, "video frameCountInQueue : " + frameCountInQueue);
                             if (frameCountInQueue > previousFrameCount) {
                                 frameQueueIncreased++;
@@ -285,13 +331,16 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
                                             mRenderer.setFrameRate(frameRate);
                                         }
                                         else {
-                                            int bitrate = mRenderer.getBitrate();
-                                            if (bitrate > 200000) { //200kbit
-                                                bitrate -= 100000;
-                                                mRenderer.setBitrate(bitrate);
-                                                // notify the renderer that we want to change the encoder's state
-                                                mRenderer.recorderConfigChanged();
+                                            if(spAllowBitRateChange) {
+                                                int bitrate = mRenderer.getBitrate();
+                                                if (bitrate > 200000) { //200kbit
+                                                    bitrate -= 100000;
+                                                    mRenderer.setBitrate(bitrate);
+                                                    // notify the renderer that we want to change the encoder's state
+                                                    mRenderer.recorderConfigChanged();
+                                                }
                                             }
+                                            Logger.d("Bitrate degrading attempted");
                                         }
                                     }
                                 });
@@ -308,16 +357,20 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
                                         int frameRate = mRenderer.getFrameRate();
                                         if (frameRate <= 27) {
                                             frameRate += 3;
+                                            Logger.d("Framerate changed to " + frameRate);
                                             mRenderer.setFrameRate(frameRate);
                                         }
                                         else {
-                                            int bitrate = mRenderer.getBitrate();
-                                            if (bitrate < 2000000) { //2Mbit
-                                                bitrate += 100000;
-                                                mRenderer.setBitrate(bitrate);
-                                                // notify the renderer that we want to change the encoder's state
-                                                mRenderer.recorderConfigChanged();
+                                            if (spAllowBitRateChange) {
+                                                int bitrate = mRenderer.getBitrate();
+                                                if (bitrate < 2000000) { //2Mbit
+                                                    bitrate += 100000;
+                                                    mRenderer.setBitrate(bitrate);
+                                                    // notify the renderer that we want to change the encoder's state
+                                                    mRenderer.recorderConfigChanged();
+                                                }
                                             }
+                                            Logger.d("Bitrate upgrade attempted!");
                                         }
                                     }
                                 });
@@ -340,7 +393,7 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     }
 
 
-    public void stopBroadcasting() {
+    public void stopBroadcasting(boolean quit) {
         if (isRecording) {
 
             mGLView.queueEvent(new Runnable() {
@@ -363,22 +416,27 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
                 audioHandler.sendEmptyMessage(AudioHandler.END_OF_STREAM);
             }
 
-            int i = 0;
-            while (sVideoEncoder.isRecording()) {
-                try {
-                    Thread.sleep(50);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+            if(quit) {
+                int i = 0;
+                while (sVideoEncoder.isRecording()) {
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    if (i>5) {
+                        //timeout 25000ms / 25sec
+                        //force stop recording
+                        sVideoEncoder.stopRecording(true);
+                        EventBroadcast.sendEvent(this, LiveVideoBroadcasterStatus.STOPPED);
+                        sVideoEncoder.setListener(null);
+                        break;
+                    }
+                    i++;
                 }
-                if (i>5) {
-                    //timeout 25000ms / 25sec
-                    //force stop recording
-                    sVideoEncoder.stopRecording();
-                    Intent intent = new Intent("Stream-Stopped");
-                    LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
-                    break;
-                }
-                i++;
+            } else {
+                //mRtmpHandlerThread.quitSafely();
+                sVideoEncoder.stopRecordingSafely();
             }
         }
 
@@ -817,4 +875,6 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     public IBinder onBind(Intent intent) {
         return mBinder;
     }
+
+
 }

@@ -3,8 +3,11 @@ package io.antmedia.android.broadcaster;
 import android.app.Activity;
 import android.opengl.GLSurfaceView;
 
+import androidx.lifecycle.MutableLiveData;
+
 import java.util.ArrayList;
 
+import io.antmedia.android.broadcaster.constants.LiveVideoBroadcasterStatus;
 import io.antmedia.android.broadcaster.utils.Resolution;
 
 /**
@@ -105,9 +108,10 @@ public interface ILiveVideoBroadcaster {
     /**
      * Stops broadcastings to the server
      */
-    void stopBroadcasting();
+    void stopBroadcasting(boolean quit);
 
     void stopService();
 
 
+    MutableLiveData<LiveVideoBroadcasterStatus> getLiveData();
 }
