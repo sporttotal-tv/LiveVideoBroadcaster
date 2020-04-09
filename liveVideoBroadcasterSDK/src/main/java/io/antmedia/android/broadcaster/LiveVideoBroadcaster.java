@@ -31,8 +31,6 @@ import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-
 
 import com.google.android.material.snackbar.Snackbar;
 
@@ -84,7 +82,7 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     public static final int PERMISSIONS_REQUEST = 8954;
 
     public final static int SAMPLE_AUDIO_RATE_IN_HZ = 44100;
-    private static TextureMovieEncoder sVideoEncoder = new TextureMovieEncoder();
+    private TextureMovieEncoder sVideoEncoder;
     private Resolution previewSize;
     private AlertDialog mAlertDialog;
     private HandlerThread mRtmpHandlerThread;
@@ -160,16 +158,16 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
 
     @Override
     public void onVideoEncoderStopped() {
-        Logger.d("onVideoEncoderStopped -> enter");
+        Logger.d("LiveVideoBroadcaster:onVideoEncoderStopped");
         //EventBroadcast.sendEvent(context, LiveVideoBroadcasterStatus.STOPPING_SAFELY);
         EventBroadcast.sendEvent(liveVideoBroadcasterLV, LiveVideoBroadcasterStatus.STOPPING_SAFELY);
         sVideoEncoder.setListener(null);
-        Logger.d("onVideoEncoderStopped -> exit");
     }
 
     @Override
     public void onVideoEncoderRunning() {
-        EventBroadcast.sendEvent(this, LiveVideoBroadcasterStatus.STREAMING);
+        Logger.d("LiveVideoBroadcaster:onVideoEncoderRunning");
+        EventBroadcast.sendEvent(liveVideoBroadcasterLV, LiveVideoBroadcasterStatus.STREAMING);
     }
 
     public class LocalBinder extends Binder {
@@ -182,26 +180,31 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     @Override
     public void onCreate() {
         super.onCreate();
-
-
+        Logger.d("LiveVideoBroadcaster:onCreate");
     }
 
     @Override
     public void stopService() {
+        Logger.d("LiveVideoBroadcaster:stopService");
         stopSelf();
     }
 
     @Override
     public void onDestroy() {
+        Logger.d("LiveVideoBroadcaster:onDestroy");
         audioHandlerThread.quitSafely();
         mRtmpHandlerThread.quitSafely();
         mCameraHandler.invalidateHandler();
         this.context = null;
+        liveVideoBroadcasterLV.removeObservers((LifecycleOwner) context);
         super.onDestroy();
     }
 
     public void init(Activity activity, GLSurfaceView glView) {
+        Logger.d("LiveVideoBroadcaster:init");
+
         try {
+            sVideoEncoder = new TextureMovieEncoder();
             audioHandlerThread = new HandlerThread("AudioHandlerThread", Process.THREAD_PRIORITY_AUDIO);
             audioHandlerThread.start();
             audioHandler = new AudioHandler(audioHandlerThread.getLooper());
@@ -213,6 +216,9 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
             // thread, so we know the fully-constructed object will be visible.
             mRenderer = new CameraSurfaceRenderer(mCameraHandler, sVideoEncoder);
             mGLView = glView;
+            // Configure the GLSurfaceView.  This will start the Renderer thread, with an
+            // appropriate EGL activity.
+            mGLView.setEGLContextClientVersion(2) ;    // select GLES 2.0
             mGLView.setRenderer(mRenderer);
             mGLView.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY);
 
@@ -228,10 +234,13 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
                 public void onChanged(LiveVideoBroadcasterStatus liveVideoBroadcasterStatus) {
                     switch (liveVideoBroadcasterStatus) {
                         case NETWORK_PAUSED: {
-
+                            Logger.d("LiveVideoBroadcaster:liveVideoBroadcasterLV:NETWORK_PAUSED");
+                            mRtmpStreamer.shouldPause(true);
                         }
                         break;
                         case NETWORK_RESUMED: {
+                            Logger.d("LiveVideoBroadcaster:liveVideoBroadcasterLV:NETWORK_RESUMED");
+                            mRtmpStreamer.shouldPause(false);
                             liveVideoBroadcasterLV.setValue(STREAMING);
                         }
                     }
@@ -395,7 +404,6 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
 
     public void stopBroadcasting(boolean quit) {
         if (isRecording) {
-
             mGLView.queueEvent(new Runnable() {
                 @Override
                 public void run() {

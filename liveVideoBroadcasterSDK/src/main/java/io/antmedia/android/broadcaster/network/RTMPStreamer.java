@@ -26,7 +26,7 @@ import io.antmedia.android.broadcaster.network.IMediaMuxer;
 public class RTMPStreamer extends Handler implements IMediaMuxer  {
 
 
-    private static final boolean DEBUG = false;
+    private static final boolean DEBUG = true;
     private static final String TAG = RTMPStreamer.class.getSimpleName();
     RTMPMuxer rtmpMuxer = new RTMPMuxer();
 
@@ -40,6 +40,7 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
     private Object frameSynchronized = new Object();
     private boolean isConnected = false;
     private boolean isStopping = false;
+    private String rtmpUrl;
 
     public class Frame {
         byte[] data;
@@ -89,6 +90,7 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
         lastSentFrameTimeStamp = -1;
         isConnected = false;
         isStopping = false;
+        rtmpUrl = url;
         int result = rtmpMuxer.open(url, 0, 0);
 
         if (result > 0) {
@@ -99,11 +101,21 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
         return isConnected;
     }
 
+    private boolean isPause = false;
+
+    public void shouldPause(boolean pause) {
+        if(!pause && !isConnected && rtmpUrl!=null) {
+            rtmpMuxer = new RTMPMuxer();
+            open(rtmpUrl);
+        }
+        isPause = pause;
+        Logger.d("LVB:RTMPStreamer pause state ->" + pause + " isConnected: " + isConnected + " url :" + rtmpUrl);
+    }
+
     public void close() {
-        Log.i(TAG, "close rtmp connection");
+        Log.i(TAG, "LVB:close rtmp connection");
         isConnected = false;
         rtmpMuxer.close();
-        isStopping = true;
     }
 
     /**
@@ -215,12 +227,18 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
     }
 
     private void sendAudioFrames(int timestamp) {
+        if(isPause) {
+            Logger.d("RTMPStreamer:sendAudioFrames: is paused");
+            return;
+        }
         Iterator<Frame> iterator = audioFrameList.iterator();
-        while (iterator.hasNext())
-        {
+        while (iterator.hasNext()) {
             Frame audioFrame = iterator.next();
-            if (audioFrame.timestamp <= timestamp)
-            {
+            if (audioFrame.timestamp <= timestamp) {
+                if (isPause) {
+                    Logger.d("RTMPStreamer:sendAudioFrames: is paused on frame: " + audioFrame.timestamp);
+                    break;
+                }
                 // frame time stamp should be equal or less than the previous timestamp
                 // in some cases timestamp of audio and video frames may be equal
                 if (audioFrame.timestamp >= lastSentFrameTimeStamp) {
@@ -231,20 +249,29 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
                         int result = rtmpMuxer.writeAudio(audioFrame.data, 0, audioFrame.length, audioFrame.timestamp);
 
                         if (DEBUG) {
-                            Log.d(TAG, "send audio result: " + result + " time:" + audioFrame.timestamp + " length:" + audioFrame.length);
+                            Log.d(TAG, "LVB::send audio result: " + result + " time:" + audioFrame.timestamp + " length:" + audioFrame.length);
                         }
 
+                            /*if (result < 0) {
+                                Log.d(TAG, "error send audio result: " + result + " time:" + audioFrame.timestamp + " length:" + audioFrame.length);
+                                close();
+                            }
+                        }*/
+                        lastAudioFrameTimeStamp = audioFrame.timestamp;
+                        lastSentFrameTimeStamp = audioFrame.timestamp;
+                        synchronized (frameSynchronized) {
+                            frameCount--;
+                        }
+                        //}
+
+                        iterator.remove();
                         if (result < 0) {
-                            close();
+                            //close();
+                            Log.d(TAG, "LVB::error send audio result: " + result + " time:" + audioFrame.timestamp + " length:" + audioFrame.length);
+
                         }
                     }
-                    lastAudioFrameTimeStamp = audioFrame.timestamp;
-                    lastSentFrameTimeStamp = audioFrame.timestamp;
-                    synchronized (frameSynchronized) {
-                        frameCount--;
-                    }
                 }
-                iterator.remove();
             }
             else {
                 //if timestamp is bigger than the auio frame timestamp
@@ -255,11 +282,18 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
     }
 
     private void sendVideoFrames(int timestamp) {
+        if(isPause) {
+            Logger.d("RTMPStreamer:sendVideoFrames: is paused");
+            return;
+        }
         Iterator<Frame> iterator = videoFrameList.iterator();
         while (iterator.hasNext()) {
             Frame frame = iterator.next();
-            if ((frame.timestamp <= timestamp))
-            {
+            if ((frame.timestamp <= timestamp)) {
+                if (isPause) {
+                    Logger.d("RTMPStreamer:sendVideoFrames: is paused on frame: " + frame.timestamp);
+                    break;
+                }
                 // frame time stamp should be equal or less than timestamp
                 // in some cases timestamp of audio and video frames may be equal
                 if (frame.timestamp >= lastSentFrameTimeStamp) {
@@ -269,20 +303,30 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
                     if (isConnected) {
                         int result = rtmpMuxer.writeVideo(frame.data, 0, frame.length, frame.timestamp);
                         if (DEBUG) {
-                            Log.d(TAG, "send video result: " + result + " time:" + frame.timestamp + " length:" + frame.length);
+                            Log.d(TAG, "LVB::send video result: " + result + " time:" + frame.timestamp + " length:" + frame.length);
                         }
+                        /*if (result < 0) {
+                            //close();
+                            Log.d(TAG, "error send video result: " + result + " time:" + frame.timestamp + " length:" + frame.length);
+
+                        }
+                    }*/
+
+                        lastVideoFrameTimeStamp = frame.timestamp;
+                        lastSentFrameTimeStamp = frame.timestamp;
+                        synchronized (frameSynchronized) {
+                            frameCount--;
+                        }
+                        //}
+
+                        iterator.remove();
                         if (result < 0) {
-                            close();
+                            //close();
+                            Log.d(TAG, "LVB::error send video result: " + result + " time:" + frame.timestamp + " length:" + frame.length);
+
                         }
-                    }
-                    lastVideoFrameTimeStamp = frame.timestamp;
-                    lastSentFrameTimeStamp = frame.timestamp;
-                    synchronized (frameSynchronized) {
-                        frameCount--;
                     }
                 }
-
-                iterator.remove();
             }
             else {
                 //if frame timestamp is not smaller than the timestamp
