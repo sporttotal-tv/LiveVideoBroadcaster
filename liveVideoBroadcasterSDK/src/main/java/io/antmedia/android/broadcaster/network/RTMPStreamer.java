@@ -359,11 +359,11 @@ public class RTMPStreamer extends Handler implements IMediaMuxer  {
     }
 
     public int getLastAudioFrameTimeStamp() {
-        return getLastReceivedAudioFrameTimeStamp();//lastAudioFrameTimeStamp;
+        return lastAudioFrameTimeStamp;
     }
 
     public int getLastVideoFrameTimeStamp() {
-        return getLastReceivedVideoFrameTimeStamp(); //lastVideoFrameTimeStamp;
+        return lastVideoFrameTimeStamp;
     }
 
     public void writeFLVHeader(boolean hasAudio, boolean hasVideo) {
