@@ -11,4 +11,9 @@ public class Logger {
     public static void state(Class c, String message) {
         Log.i("LiveVideoBroadcaster" , "State(" + c.getName() +"):"  +  message);
     }
+
+    public static void e(String message) {
+        Log.e("LiveVideoBroadcaster" , "LVB:" +  message);
+    }
+
 }

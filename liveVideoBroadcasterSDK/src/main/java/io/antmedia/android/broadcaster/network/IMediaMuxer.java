@@ -22,7 +22,6 @@ public interface IMediaMuxer {
      */
     int getLastVideoFrameTimeStamp();
 
-
     boolean open(String uri);
 
     boolean isConnected();
@@ -38,4 +37,6 @@ public interface IMediaMuxer {
     int getVideoFrameCountInQueue();
 
     void shouldPause(boolean pause);
+
+    void setListener(RTMPStreamer.IRtmpStreamerCallback callback);
 }

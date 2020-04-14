@@ -72,6 +72,7 @@ public class AudioEncoder extends Thread {
         if (mAudioEncoder == null) {
             return;
         }
+
         int bufferRemaining;
 
         for (int i = 0; i < 3 ; i++) {
@@ -98,7 +99,6 @@ public class AudioEncoder extends Thread {
             }
         }
     }
-
 
     public void stopEncoding()
     {

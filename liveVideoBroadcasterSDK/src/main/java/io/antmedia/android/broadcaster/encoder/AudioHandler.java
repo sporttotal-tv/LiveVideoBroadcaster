@@ -45,9 +45,6 @@ public class AudioHandler extends Handler {
         if (audioEncoder == null) {
             return;
         }
-
-
-
         switch (msg.what) {
             case END_OF_STREAM:
                 if (audioEncoder.getState() == Thread.State.RUNNABLE) {

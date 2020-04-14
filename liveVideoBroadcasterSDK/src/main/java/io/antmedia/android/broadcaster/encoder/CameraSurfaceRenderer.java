@@ -56,7 +56,7 @@ public class CameraSurfaceRenderer implements GLSurfaceView.Renderer {
     private IMediaMuxer mWriterHandler;
     private long mRecordingStartTime;
     private int bitrate;
-    private int frameRate = 25;
+    private int frameRate = 30;
 
     /**
      * Constructs CameraSurfaceRenderer.
@@ -134,18 +134,18 @@ public class CameraSurfaceRenderer implements GLSurfaceView.Renderer {
         mIncomingHeight = height;
         mIncomingSizeUpdated = true;
         if (mIncomingHeight >= 720) {
-            bitrate = 850000;
+            bitrate = 500000;//850000;
         } else if (mIncomingHeight >= 480) {
-            bitrate = 550000;
+            bitrate = 400000;//550000;
         } else if (mIncomingHeight >= 360) {
-            bitrate = 450000;
+            bitrate = 300000;//450000;
         } else if (mIncomingHeight >= 288) {
-            bitrate = 350000;
+            bitrate = 300000;//350000;
         } else if (mIncomingHeight >= 240) {
-            bitrate = 250000;
+            bitrate = 100000;//250000;
         } else //if (mIncomingHeight >= 144)
         {
-            bitrate = 100000;
+            bitrate = 100000;//100000;
         }
     }
 

@@ -91,8 +91,6 @@ public class TextureMovieEncoder implements Runnable {
     private long mLastFrameTime = 0;
     private Texture2dProgram.ProgramType mProgramType;
     private EncoderConfig mEncoderConfig;
-    private IVideoEncoderCallback videoEncoderCallback;
-
     /**
      * Encoder configuration.
      * <p>
@@ -124,10 +122,6 @@ public class TextureMovieEncoder implements Runnable {
         }
 
     }
-public void setListener(IVideoEncoderCallback callback) {
-        isStopping = false;
-        videoEncoderCallback = callback;
-}
 
 private boolean isStopping = false;
     /**
@@ -148,9 +142,6 @@ private boolean isStopping = false;
             this.mRecordingStartTime = mRecordingStartTime;
             mRunning = true;
             new Thread(this, "TextureMovieEncoder").start();
-            if(videoEncoderCallback != null) {
-                videoEncoderCallback.onVideoEncoderRunning();
-            }
             while (!mReady) {
                 try {
                     mReadyFence.wait();
@@ -190,6 +181,18 @@ private boolean isStopping = false;
             mHandler.sendMessage(mHandler.obtainMessage(MSG_STOP_RECORDING));
             mHandler.sendMessage(mHandler.obtainMessage(MSG_QUIT));
             Logger.d("TextureMovieEncoder:stopRecording -> exit");
+
+        }
+        // We don't know when these will actually finish (or even start).  We don't want to
+        // delay the UI thread though, so we return immediately.
+    }
+
+    public void pauseRecordingV2() {
+        if (mHandler != null) {
+
+            Logger.d("TextureMovieEncoder:pauseRecording -> enter");
+            mHandler.sendMessage(mHandler.obtainMessage(MSG_STOP_RECORDING));
+            Logger.d("TextureMovieEncoder:pauseRecording -> exit");
 
         }
         // We don't know when these will actually finish (or even start).  We don't want to
@@ -331,9 +334,6 @@ private boolean isStopping = false;
         Looper.loop();
 
         Log.d(TAG, "Encoder thread exiting");
-        if(videoEncoderCallback !=null && isStopping) {
-            videoEncoderCallback.onVideoEncoderStopped();
-        }
         synchronized (mReadyFence) {
             mReady = mRunning = false;
             mHandler = null;
@@ -544,10 +544,4 @@ private boolean isStopping = false;
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
         GLES20.glDisable(GLES20.GL_SCISSOR_TEST);
     }
-
-    public interface IVideoEncoderCallback {
-        void onVideoEncoderStopped();
-        void onVideoEncoderRunning();
-    }
-
 }

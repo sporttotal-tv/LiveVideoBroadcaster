@@ -60,7 +60,7 @@ import static io.antmedia.android.broadcaster.constants.LiveVideoBroadcasterStat
  * Created by mekya on 28/03/2017.
  */
 
-public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcaster, CameraHandler.ICameraViewer, SurfaceTexture.OnFrameAvailableListener, TextureMovieEncoder.IVideoEncoderCallback {
+public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcaster, CameraHandler.ICameraViewer, SurfaceTexture.OnFrameAvailableListener, RTMPStreamer.IRtmpStreamerCallback {
 
     private static final String TAG = LiveVideoBroadcaster.class.getSimpleName();
     private volatile static CameraProxy sCameraProxy;
@@ -78,11 +78,11 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     private int currentCameraId= Camera.CameraInfo.CAMERA_FACING_BACK;
     private boolean spAllowBitRateChange = true;
 
-    private int frameRate = 20;
+    private int frameRate = 30;
     public static final int PERMISSIONS_REQUEST = 8954;
 
     public final static int SAMPLE_AUDIO_RATE_IN_HZ = 44100;
-    private TextureMovieEncoder sVideoEncoder;
+    private static TextureMovieEncoder sVideoEncoder = new TextureMovieEncoder();
     private Resolution previewSize;
     private AlertDialog mAlertDialog;
     private HandlerThread mRtmpHandlerThread;
@@ -157,17 +157,10 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
     }
 
     @Override
-    public void onVideoEncoderStopped() {
-        Logger.d("LiveVideoBroadcaster:onVideoEncoderStopped");
-        //EventBroadcast.sendEvent(context, LiveVideoBroadcasterStatus.STOPPING_SAFELY);
-        EventBroadcast.sendEvent(liveVideoBroadcasterLV, LiveVideoBroadcasterStatus.STOPPING_SAFELY);
-        sVideoEncoder.setListener(null);
-    }
-
-    @Override
-    public void onVideoEncoderRunning() {
-        Logger.d("LiveVideoBroadcaster:onVideoEncoderRunning");
-        EventBroadcast.sendEvent(liveVideoBroadcasterLV, LiveVideoBroadcasterStatus.STREAMING);
+    public void onRtmpStreamerClosed() {
+        if(liveVideoBroadcasterLV.getValue() != LiveVideoBroadcasterStatus.NETWORK_PAUSED) {
+            EventBroadcast.sendEvent(liveVideoBroadcasterLV, LiveVideoBroadcasterStatus.STOPPING_SAFELY);
+        }
     }
 
     public class LocalBinder extends Binder {
@@ -204,13 +197,11 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
         Logger.d("LiveVideoBroadcaster:init");
 
         try {
-            sVideoEncoder = new TextureMovieEncoder();
             audioHandlerThread = new HandlerThread("AudioHandlerThread", Process.THREAD_PRIORITY_AUDIO);
             audioHandlerThread.start();
             audioHandler = new AudioHandler(audioHandlerThread.getLooper());
             mCameraHandler = new CameraHandler(this);
             this.context = activity;
-
             // Define a handler that receives camera-control messages from other threads.  All calls
             // to Camera must be made on the same thread.  Note we create this before the renderer
             // thread, so we know the fully-constructed object will be visible.
@@ -225,7 +216,7 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
             mRtmpHandlerThread = new HandlerThread("RtmpStreamerThread"); //, Process.THREAD_PRIORITY_BACKGROUND);
             mRtmpHandlerThread.start();
             mRtmpStreamer = new RTMPStreamer(mRtmpHandlerThread.getLooper());
-
+            mRtmpStreamer.setListener(this);
             connectivityManager = (ConnectivityManager) this.getSystemService(
                     Context.CONNECTIVITY_SERVICE);
 
@@ -259,12 +250,9 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
         }
         return false;
     }
-
     public boolean startBroadcasting(String rtmpUrl) {
-
         isRecording = false;
         Logger.d("LiveVideoBroadcaster:init and set listener");
-        sVideoEncoder.setListener(this);
         if (sCameraProxy == null || sCameraProxy.isReleased()) {
             Log.w(TAG, "Camera should be opened before calling this function");
             return false;
@@ -401,7 +389,6 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
         return isRecording;
     }
 
-
     public void stopBroadcasting(boolean quit) {
         if (isRecording) {
             mGLView.queueEvent(new Runnable() {
@@ -424,26 +411,10 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
                 audioHandler.sendEmptyMessage(AudioHandler.END_OF_STREAM);
             }
 
-            if(quit) {
-                int i = 0;
-                while (sVideoEncoder.isRecording()) {
-                    try {
-                        Thread.sleep(50);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                    if (i>5) {
-                        //timeout 25000ms / 25sec
-                        //force stop recording
-                        sVideoEncoder.stopRecording(true);
-                        EventBroadcast.sendEvent(this, LiveVideoBroadcasterStatus.STOPPED);
-                        sVideoEncoder.setListener(null);
-                        break;
-                    }
-                    i++;
-                }
+            if (quit) {
+                sVideoEncoder.stopRecording(true);
+                EventBroadcast.sendEvent(getLiveData(), LiveVideoBroadcasterStatus.STOPPED);
             } else {
-                //mRtmpHandlerThread.quitSafely();
                 sVideoEncoder.stopRecordingSafely();
             }
         }
@@ -568,6 +539,7 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
                     releaseCamera();
                 }
                 else if (sCameraProxy != null && parameters != null) {
+                    //setResolution(new Resolution(1280, 720));
                     mGLView.setVisibility(View.VISIBLE);
                     mGLView.onResume();
                     //mGLView.setAlpha(0.7f);
@@ -674,6 +646,7 @@ public class LiveVideoBroadcaster extends Service implements ILiveVideoBroadcast
         //sCameraDevice.setParameters(parameters);
         sCameraProxy.setParameters(parameters);
         Camera.Size size = parameters.getPreviewSize();
+        Logger.d("setting resolutino :" + size.width + "x"  + size.height);
         this.previewSize = new Resolution(size.width, size.height);
 
         return len;
